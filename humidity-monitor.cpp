@@ -1,31 +1,11 @@
 #include <Wire.h>
-#include <LCD.h>
-#include <LiquidCrystal_I2C.h>
+#include "LiquidCrystal_I2C.h"
 #include "DHT.h"
-#include <SPI.h>
-#include <Adafruit_Sensor.h>
-#include <Adafruit_BME280.h>
 
-#define SEALEVELPRESSURE_HPA (1013.25)
+DHT dht(2, DHT22);
+DHT dht11(3, DHT11);
 
-Adafruit_BME280 bme; // I2C
-
-#define I2C_ADDR          0x27        //Define I2C Address where the PCF8574A is
-#define BACKLIGHT_PIN      3
-#define En_pin             2
-#define Rw_pin             1
-#define Rs_pin             0
-#define D4_pin             4
-#define D5_pin             5
-#define D6_pin             6
-#define D7_pin             7
-#define DHTPIN             2
-#define DHTTYPE DHT22
-DHT dht(DHTPIN, DHTTYPE);
-
-
-//Initialise the LCD
-LiquidCrystal_I2C      lcd(I2C_ADDR, En_pin,Rw_pin,Rs_pin,D4_pin,D5_pin,D6_pin,D7_pin);
+LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 void setup()
  {
@@ -33,15 +13,12 @@ void setup()
     Serial.println(F("DHT and DME test!"));
     delay(50);
     dht.begin();delay(30);
-    bme.begin();delay(30); // 0x76, &Wire
-    lcd.begin(20,4);
-    
-    //Switch on the backlight
-    lcd.setBacklightPin(BACKLIGHT_PIN,POSITIVE);
-    lcd.setBacklight(HIGH);
-    
+    dht11.begin();delay(30);
+    lcd.init();
+    lcd.backlight();
+    lcd.clear();
+
     lcd.setCursor(0,0);
-    
     lcd.print(F("Initializing..."));
     delay(500);
     
@@ -60,30 +37,38 @@ void setup()
 
 void loop(){
   lcd.clear();
-  dhtValues();
-  bmeValues();
+  dhtValues(dht,   2, 0);
+  dhtValues(dht11, 1, 2);
   
+  lcd.setCursor(random(0, 20), 1);
+  lcd.print("*");
   lcd.setCursor(random(0, 20), 3);
   lcd.print("*");
   delay(3000);
 }
 
-void dhtValues() {
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
+void dhtValues(DHT &sensor, int index, int line) {
+  float h = sensor.readHumidity();
+  float t = sensor.readTemperature();
 
   if (isnan(h) || isnan(t)) {
     Serial.println(F("Failed to read from DHT sensor!"));
     lcd.setCursor(6, 0);
     lcd.print(F("Failed!"));
+    for (int i=0;i<4;i++) {
+      lcd.setCursor(random(0, 20), i);
+      lcd.print("X");
+    }
     delay(2000);
     return;
   }
 
-  float hic = dht.computeHeatIndex(t, h, false);
+  float hic = sensor.computeHeatIndex(t, h, false);
 
-  lcd.setCursor(0, 0);
-  lcd.print(F("D "));
+  lcd.setCursor(0, line);
+  lcd.print(F("D"));
+  lcd.print(index);
+  lcd.print(F(" "));
 //  char float_str[8];
 //  dtostrf(t,4,2,float_str);
 //  lcd.print(sprintf("%0.1sC", float_str));
@@ -92,46 +77,14 @@ void dhtValues() {
   lcd.print(h);
   lcd.print(F("%"));
 
-  Serial.print(F("DHT: Temperature: "));
+  Serial.print(F("DHT"));
+  Serial.print(index);
+  Serial.print(index);
+  Serial.print(F(": Temperature: "));
   Serial.print(t);
   Serial.print(F("°C Humidity: "));
   Serial.print(h);
   Serial.print(F("% Heat index: "));
   Serial.print(hic);
   Serial.print(F("\n"));
-}
-
-void bmeValues() {
-  float bt = bme.readTemperature();
-  float bh = bme.readHumidity();
-  float bp = bme.readPressure() / 100.0F;
-  float ba = bme.readAltitude(SEALEVELPRESSURE_HPA);
-
-  lcd.setCursor(0, 1);
-  lcd.print(F("B "));
-  lcd.print(bt);
-  lcd.print(F("C  "));
-  lcd.print(bh);
-  lcd.print(F("% "));
-
-  lcd.setCursor(2, 2);
-  lcd.print(bp);
-  lcd.print(F("hPa  "));
-  lcd.print(ba);
-  lcd.print(F("m"));
-  
-  Serial.print(F("BME: Temperature = "));
-  Serial.print(bt);
-
-  Serial.print(F("°C Humidity = "));
-  Serial.print(bh);
-
-  Serial.print(F("% Pressure = "));
-  Serial.print(bp);
-  Serial.print(F(" hPa"));
-  Serial.println("");
-
-  Serial.print(F("Approx. Altitude = "));
-  Serial.print(ba);
-  Serial.println(F(" m"));
 }
