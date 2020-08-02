@@ -2,7 +2,7 @@
 #include "LiquidCrystal_I2C.h"
 #include <DHT.h>
 
-#define ITERATION_MOD 1 // iterations to skip between measurements storing
+#define ITERATION_MOD 60 // iterations to skip between measurements storing
 #define HISTORY_SETS 2
 #define HISTORY_SIZE 20
 
@@ -14,7 +14,9 @@ int history[HISTORY_SETS][HISTORY_SIZE];
 int plot_array[20];
 int plot_maxs[HISTORY_SETS] = {-32000, -32000};
 int plot_mins[HISTORY_SETS] = {32000, 32000};
+int averages[HISTORY_SETS][2] = {{0,0}, {0,0}};
 unsigned int iteration = 0;
+bool first_iteration = true;
 
 void setup() {
   Serial.begin(9600);
@@ -22,8 +24,8 @@ void setup() {
   Serial.println(F("DHT temperature and humidity monitor"));
   delay(50);
 
-  dht22.begin();delay(30);
-  dht11.begin();delay(30);
+  dht22.begin(); delay(30);
+  dht11.begin(); delay(30);
   lcd.init();
   lcd.backlight();
   lcd.clear();
@@ -42,28 +44,17 @@ void setup() {
 }
 
 void loop() {
-  int h;
-  ++iteration;
-  lcd.clear();
-
   dhtValues(dht22, 0, 0, history[0]);
-  printHistory(history[0]);
-  drawPlot(history[0], 0, 1, 20, 1, plot_mins[0], plot_maxs[0], 0);
-
   dhtValues(dht11, 1, 2, history[1]);
-  printHistory(history[1]);
-  drawPlot(history[1], 0, 3, 20, 1, plot_mins[1], plot_maxs[1], 0);
 
-  Serial.print(plot_mins[0]); Serial.print(" - ");
-  Serial.print(plot_maxs[0]); Serial.print(";   ");
-  Serial.print(plot_mins[1]); Serial.print(" - ");
-  Serial.println(plot_maxs[1]);
+  if((iteration % ITERATION_MOD == 0) || (iteration == 0)) {
+    drawPlot(history[0], 0, 1, 20, 1, plot_mins[0], plot_maxs[0], 0);
+    drawPlot(history[1], 0, 3, 20, 1, plot_mins[1], plot_maxs[1], 0);
+  }
+
+  ++iteration;
   delay(3000);
 }
-
-//void prepareAndDrawPlot(int* history_set, int index, int lcd_line) {
-//  drawPlot(history[0], 0, lcd_line, 20, 1, plot_mins[index], plot_maxs[index], 0);
-//}
 
 int dhtValues(DHT &sensor, int index, int lcdLine, int* history_set) {
   float h = sensor.readHumidity();
@@ -78,7 +69,14 @@ int dhtValues(DHT &sensor, int index, int lcdLine, int* history_set) {
     return;
   }
 
-  if(iteration % ITERATION_MOD == 0) pushToHistory(history_set, h);
+  if(first_iteration) { initHistory(index, h); first_iteration = false; }
+
+  if((iteration % ITERATION_MOD == 0) || (iteration == 0)) {
+    countAverage(index, h);
+    pushToHistory(history_set, averages[index][0]);
+    resetAverage(index);
+    iteration = 0;
+  } else countAverage(index, h);
 
   lcd.setCursor(0, lcdLine);
   lcd.print(F("D")); lcd.print(index); lcd.print(F(" ")); lcd.print(t, 1);
@@ -92,10 +90,35 @@ int dhtValues(DHT &sensor, int index, int lcdLine, int* history_set) {
   return h;
 }
 
+void countAverage(int index, int h) {
+  if(averages[index][0] != 0) {
+    averages[index][0] = (averages[index][0] * averages[index][1] + h) / (averages[index][1] + 1);
+    averages[index][1] += 1;
+  } else {
+    averages[index][0] = h;
+    averages[index][1] = 1;
+  }
+}
+
+void resetAverage(int index) {
+  averages[index][0] = 0;
+  averages[index][1] = 0;
+}
+
+void printAverages() {
+  Serial.print(averages[0][0]); Serial.print(" "); Serial.println(averages[0][1]);
+  Serial.print(averages[1][0]); Serial.print(" "); Serial.println(averages[1][1]);
+}
+
 void initHistory() {
   for(int j=0; j<HISTORY_SETS;j++)
     for(int i=0; i<HISTORY_SIZE;i++)
       history[j][i] = 0;
+}
+
+void initHistory(int index, int value) {
+    for(int i=0; i<HISTORY_SIZE;i++)
+      history[index][i] = value;
 }
 
 void printHistory(int* history_set) {
