@@ -2,6 +2,7 @@
 #include "LiquidCrystal_I2C.h"
 #include <DHT.h>
 
+#define ITERATION_MOD 1 // iterations to skip between measurements storing
 #define HISTORY_SETS 2
 #define HISTORY_SIZE 20
 
@@ -11,12 +12,16 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 int history[HISTORY_SETS][HISTORY_SIZE];
 int plot_array[20];
+int plot_maxs[HISTORY_SETS] = {-32000, -32000};
+int plot_mins[HISTORY_SETS] = {32000, 32000};
 unsigned int iteration = 0;
 
 void setup() {
   Serial.begin(9600);
+  Serial.println(F("--===============**===============--"));
   Serial.println(F("DHT temperature and humidity monitor"));
   delay(50);
+
   dht22.begin();delay(30);
   dht11.begin();delay(30);
   lcd.init();
@@ -24,12 +29,11 @@ void setup() {
   lcd.clear();
   
   lcd.setCursor(0,0);
-  lcd.print(F("Initializing..."));
+  lcd.print(F("Initializing"));
   delay(500);
   
   for(int i=0;i<3;i++) {
-    lcd.setCursor(0,i+1);
-    lcd.print(F("..."));
+    lcd.print(F("."));
     delay(500);
   }
 
@@ -39,87 +43,59 @@ void setup() {
 
 void loop() {
   int h;
-  int max_value;
-  int min_value;
   ++iteration;
   lcd.clear();
-  dhtValues(dht22, 2, 0, history[0]);
+
+  dhtValues(dht22, 0, 0, history[0]);
   printHistory(history[0]);
-  max_value = -32000;
-  min_value = 32000;
-  for (byte i = 0; i < HISTORY_SIZE; i++) {
-    if (history[0][i] > max_value) max_value = history[0][i];
-    if (history[0][i] < min_value) min_value = history[0][i];
-  }
-  drawPlot(history[0], 0, 1, 20, 1, min_value, max_value, 0);
+  drawPlot(history[0], 0, 1, 20, 1, plot_mins[0], plot_maxs[0], 0);
 
-
-  h = dhtValues(dht11, 1, 2, history[1]);
+  dhtValues(dht11, 1, 2, history[1]);
   printHistory(history[1]);
-  max_value = -32000;
-  min_value = 32000;
-  for (byte i = 0; i < HISTORY_SIZE; i++) {
-    if (history[1][i] > max_value) max_value = history[1][i];
-    if (history[1][i] < min_value) min_value = history[1][i];
-  }
-  drawPlot(history[1], 0, 3, 20, 1, min_value, max_value, h);
-  
+  drawPlot(history[1], 0, 3, 20, 1, plot_mins[1], plot_maxs[1], 0);
+
+  Serial.print(plot_mins[0]); Serial.print(" - ");
+  Serial.print(plot_maxs[0]); Serial.print(";   ");
+  Serial.print(plot_mins[1]); Serial.print(" - ");
+  Serial.println(plot_maxs[1]);
   delay(3000);
 }
+
+//void prepareAndDrawPlot(int* history_set, int index, int lcd_line) {
+//  drawPlot(history[0], 0, lcd_line, 20, 1, plot_mins[index], plot_maxs[index], 0);
+//}
 
 int dhtValues(DHT &sensor, int index, int lcdLine, int* history_set) {
   float h = sensor.readHumidity();
   float t = sensor.readTemperature();
 
+  if (h > plot_maxs[index]) plot_maxs[index] = h + 1;
+  if (h < plot_mins[index]) plot_mins[index] = h - 1;
+
   if (isnan(h) || isnan(t)) {
     Serial.println(F("Failed to read from DHT sensor!"));
-    lcd.setCursor(6, 0);
-    lcd.print(F("Failed!"));
-    for (int i=0;i<4;i++) {
-      lcd.setCursor(random(0, 20), i);
-      lcd.print(F("X"));
-    }
-    delay(2000);
+    lcd.setCursor(6, 0); lcd.print(F("Failed!")); delay(2000);
     return;
   }
 
-  if(iteration % 1 == 0) {
-    pushToHistory(history_set, h);
-  }
-
-  float hic = sensor.computeHeatIndex(t, h, false);
+  if(iteration % ITERATION_MOD == 0) pushToHistory(history_set, h);
 
   lcd.setCursor(0, lcdLine);
-  lcd.print(F("D"));
-  lcd.print(index);
-  lcd.print(F("  "));
-//  char float_str[8];
-//  dtostrf(t,4,2,float_str);
-//  lcd.print(sprintf("%0.1sC", float_str));
-  lcd.print(t, 1);
-  lcd.print(F(" C   "));
-  lcd.print(h, 1);
-  lcd.print(F("%"));
+  lcd.print(F("D")); lcd.print(index); lcd.print(F(" ")); lcd.print(t, 1);
+  lcd.print(F(" C   ")); lcd.print(h, 1); lcd.print(F("%"));
 
-  Serial.print(F("DHT"));
-  Serial.print(index);
-  Serial.print(index);
-  Serial.print(F(": Temperature: "));
-  Serial.print(t, 1);
-  Serial.print(F("°C Humidity: "));
-  Serial.print(h, 1);
-  Serial.print(F("% Heat index: "));
-  Serial.print(hic);
-  Serial.print(F("\n"));
+  Serial.print(F("DHT")); Serial.print(index); Serial.print(index);
+  Serial.print(F(": Temperature: ")); Serial.print(t, 1);
+  Serial.print(F("°C Humidity: ")); Serial.print(h, 1);
+  Serial.print(F("% Heat index: ")); Serial.print(sensor.computeHeatIndex(t, h, false));
+  Serial.println("");
   return h;
 }
 
 void initHistory() {
-  for(int j=0; j<HISTORY_SETS;j++) {
-    for(int i=0; i<HISTORY_SIZE;i++) {
+  for(int j=0; j<HISTORY_SETS;j++)
+    for(int i=0; i<HISTORY_SIZE;i++)
       history[j][i] = 0;
-    }
-  }
 }
 
 void printHistory(int* history_set) {
@@ -160,11 +136,6 @@ void initPlot() {
 }
 
 void drawPlot(int* plot_array, byte pos, byte row, byte width, byte height, int min_val, int max_val, int fill_val) {
-//  for (byte i = 0; i < width; i++) {
-//    plot_array[i] = plot_array[i + 1];
-//  }
-//  fill_val = constrain(fill_val, min_val, max_val);
-//  plot_array[width] = fill_val;
   for (byte i = 0; i < width; i++) {                  // каждый столбец параметров
     byte infill, fract;
     // найти количество целых блоков с учётом минимума и максимума для отображения на графике
