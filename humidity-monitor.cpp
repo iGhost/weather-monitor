@@ -43,6 +43,7 @@ void setup() {
   initPlot();
 }
 
+// ===== Main Loop =====
 void loop() {
   dhtValues(dht22, 0, 0, history[0]);
   dhtValues(dht11, 1, 2, history[1]);
@@ -55,6 +56,9 @@ void loop() {
   ++iteration;
   delay(3000);
 }
+
+
+
 
 int dhtValues(DHT &sensor, int index, int lcdLine, int* history_set) {
   float h = sensor.readHumidity();
@@ -82,8 +86,8 @@ int dhtValues(DHT &sensor, int index, int lcdLine, int* history_set) {
   lcd.print(F("D")); lcd.print(index); lcd.print(F(" ")); lcd.print(t, 1);
   lcd.print(F(" C   ")); lcd.print(h, 1); lcd.print(F("%"));
 
-  Serial.print(F("DHT")); Serial.print(index); Serial.print(index);
-  Serial.print(F(": Temperature: ")); Serial.print(t, 1);
+  Serial.print(F("DHT")); Serial.print(index);
+  Serial.print(F(":  Temperature: ")); Serial.print(t, 1);
   Serial.print(F("°C Humidity: ")); Serial.print(h, 1);
   Serial.print(F("% Heat index: ")); Serial.print(sensor.computeHeatIndex(t, h, false));
   Serial.println("");
@@ -103,11 +107,6 @@ void countAverage(int index, int h) {
 void resetAverage(int index) {
   averages[index][0] = 0;
   averages[index][1] = 0;
-}
-
-void printAverages() {
-  Serial.print(averages[0][0]); Serial.print(" "); Serial.println(averages[0][1]);
-  Serial.print(averages[1][0]); Serial.print(" "); Serial.println(averages[1][1]);
 }
 
 void initHistory() {
