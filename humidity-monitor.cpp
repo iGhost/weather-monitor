@@ -15,8 +15,8 @@ int plot_array[20];
 int plot_maxs[HISTORY_SETS] = {-32000, -32000};
 int plot_mins[HISTORY_SETS] = {32000, 32000};
 int averages[HISTORY_SETS][2] = {{0,0}, {0,0}};
-unsigned int iteration = 0;
 bool first_iteration = true;
+unsigned int iteration = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -34,7 +34,7 @@ void setup() {
   lcd.print(F("Initializing"));
   delay(500);
   
-  for(int i=0;i<3;i++) {
+  for(byte i=0; i < 3; i++) {
     lcd.print(F("."));
     delay(500);
   }
@@ -57,10 +57,7 @@ void loop() {
   delay(3000);
 }
 
-
-
-
-int dhtValues(DHT &sensor, int index, int lcdLine, int* history_set) {
+void dhtValues(DHT &sensor, int index, int lcdLine, int* history_set) {
   float h = sensor.readHumidity();
   float t = sensor.readTemperature();
 
@@ -73,25 +70,31 @@ int dhtValues(DHT &sensor, int index, int lcdLine, int* history_set) {
     return;
   }
 
-  if(first_iteration) { initHistory(index, h); first_iteration = false; }
+  if(first_iteration) {
+    initHistory(index, h);
+    first_iteration = false;
+  }
 
   if((iteration % ITERATION_MOD == 0) || (iteration == 0)) {
     countAverage(index, h);
     pushToHistory(history_set, averages[index][0]);
     resetAverage(index);
     iteration = 0;
-  } else countAverage(index, h);
+  } else {
+    countAverage(index, h);
+  }
 
   lcd.setCursor(0, lcdLine);
-  lcd.print(F("D")); lcd.print(index); lcd.print(F(" ")); lcd.print(t, 1);
-  lcd.print(F(" C   ")); lcd.print(h, 1); lcd.print(F("%"));
+  lcd.print(F("D")); lcd.print(index); lcd.print(F(" "));
+  lcd.print(t, 1); lcd.print(F(" C   "));
+  lcd.print(h, 1); lcd.print(F("%"));
 
   Serial.print(F("DHT")); Serial.print(index);
   Serial.print(F(":  Temperature: ")); Serial.print(t, 1);
   Serial.print(F("°C Humidity: ")); Serial.print(h, 1);
-  Serial.print(F("% Heat index: ")); Serial.print(sensor.computeHeatIndex(t, h, false));
+  Serial.print(F("% Heat index: "));
+  Serial.print(sensor.computeHeatIndex(t, h, false));
   Serial.println("");
-  return h;
 }
 
 void countAverage(int index, int h) {
@@ -110,19 +113,19 @@ void resetAverage(int index) {
 }
 
 void initHistory() {
-  for(int j=0; j<HISTORY_SETS;j++)
-    for(int i=0; i<HISTORY_SIZE;i++)
+  for(int j=0; j < HISTORY_SETS; j++)
+    for(int i=0; i < HISTORY_SIZE; i++)
       history[j][i] = 0;
 }
 
 void initHistory(int index, int value) {
-    for(int i=0; i<HISTORY_SIZE;i++)
+    for(int i=0; i < HISTORY_SIZE; i++)
       history[index][i] = value;
 }
 
 void printHistory(int* history_set) {
   Serial.print(F("History: "));
-  for(int i=0; i<HISTORY_SIZE;i++) {
+  for(int i=0; i < HISTORY_SIZE; i++) {
     Serial.print(history_set[i]);
     Serial.print(F(" "));
   }
@@ -130,7 +133,7 @@ void printHistory(int* history_set) {
 }
 
 void pushToHistory(int* &history_set, int value) {
-  for(int i=0; i<HISTORY_SIZE;i++) {
+  for(int i=0; i < HISTORY_SIZE; i++) {
     if(i < HISTORY_SIZE-1) {
       history_set[i] = history_set[i+1];
     }
@@ -158,22 +161,24 @@ void initPlot() {
 }
 
 void drawPlot(int* plot_array, byte pos, byte row, byte width, byte height, int min_val, int max_val, int fill_val) {
-  for (byte i = 0; i < width; i++) {                  // каждый столбец параметров
+  for (byte i = 0; i < width; i++) {
     byte infill, fract;
-    // найти количество целых блоков с учётом минимума и максимума для отображения на графике
     infill = floor((float)(plot_array[i] - min_val) / (max_val - min_val) * height * 10);
-    fract = (infill % 10) * 8 / 10;                   // найти количество оставшихся полосок
+    fract = (infill % 10) * 8 / 10;
     infill = infill / 10;
-    for (byte n = 0; n < height; n++) {     // для всех строк графика
-      if (n < infill && infill > 0) {       // пока мы ниже уровня
-        lcd.setCursor(pos + i, (row - n));        // заполняем полными ячейками
+    for (byte n = 0; n < height; n++) {
+      if (n < infill && infill > 0) {
+        lcd.setCursor(pos + i, (row - n));
         lcd.write(0);
       }
-      if (n >= infill) {                    // если достигли уровня
+      if (n >= infill) {
         lcd.setCursor(pos + i, (row - n));
-        if (fract > 0) lcd.write(fract);          // заполняем дробные ячейки
-        else lcd.write(16);                       // если дробные == 0, заливаем пустой
-        for (byte k = n + 1; k < height; k++) {   // всё что сверху заливаем пустыми
+        if (fract > 0) {
+          lcd.write(fract);
+        } else {
+          lcd.write(16);
+        }
+        for (byte k = n + 1; k < height; k++) {
           lcd.setCursor(pos + i, (row - k));
           lcd.write(16);
         }
